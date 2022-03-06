@@ -1,70 +1,77 @@
-const fs = require("fs")
-const { PINATA_KEY, PINATA_SECRET_KEY } = require("../apiKeys")
-const pinataSDK = require("@pinata/sdk")
-const pinata = pinataSDK(PINATA_KEY, PINATA_SECRET_KEY)
+const fs = require("fs/promises")
 
-// SourcePath = "assets/balbla.svg"
-// Add token ID and Attributes
-const sendFileToIPFS = async (sourcePath) => {
-  console.log("Pinning to IPFS")
-  let result = await pinata.pinFromFS(sourcePath, {
-    pinataMetadata: {
-      name: "Model 4",
-      keyvalues: {
-        value: "4 of Heart",
-        edition: "classic",
-      },
-    },
-    pinataOptions: {
-      cidVersion: 1,
-    },
-  })
-  console.log(`Size of the file: ${result.PinSize / 1000}kb`)
-  return result.IpfsHash
-}
-
-// Add token ID and Attributes
-// Only Create a Folder maybe
-// add background
-const sendJsObjToIPFS = async (name, description, attributes, imageCID) => {
-  console.log("Pinning JSON metadata")
-  const obj = {
-    name,
-    description,
-    attributes,
-    background_color: "AAAAAA",
-    image: `ipfs://${imageCID}`,
-    external_url: `https://ipfs.io/ipfs/${imageCID}`,
-  }
-
-  let result = await pinata.pinJSONToIPFS(obj, {
-    pinataMetadata: {
-      name: "Metadata of ID",
-    },
-    pinataOptions: {
-      cidVersion: 1,
-    },
-  })
-  console.log(`Size of the file: ${result.PinSize / 1000}kb`)
-
-  return result.IpfsHash
-}
-
-// MAIN TEST
+const COLOR_WHITE = "#ffffff"
 
 const main = async () => {
-  const hash = await sendFileToIPFS("assets/model1_10.svg")
-  console.log(hash)
-  let hash2 = await sendJsObjToIPFS(
-    "9 of spades",
-    "Money cards are...",
-    [
-      { trait_type: "Value", value: "9" },
-      { trait_type: "Sign", value: "Spade" },
-    ],
-    hash
-  )
-  console.log(hash2)
+  // create the editions
+  for (let i = 7; i <= 10; i++) {
+    const config = editionConfig(i)
+    await fs.mkdir(`svgs/${config.name}`)
+
+    // create svg files for the deck
+    for (let j = 0; j <= 53; j++) {
+      // Header of the SVG
+      await fs.writeFile(`svgs/${config.name}/${j}.svg`, svgHeader)
+      await fs.appendFile(`svgs/${config.name}/${j}.svg`, cardWhiteBackground)
+
+      // Theme layer
+      if (config.theme !== 0) {
+        switch (config.theme) {
+          case 1:
+            const layer = createPunkLayer(j, config.colorBlack, config.colorRed)
+            await fs.appendFile(`svgs/${config.name}/${j}.svg`, layer)
+            break
+
+          default:
+            throw new Error(`wrong value for the theme ${theme}`)
+        }
+      }
+
+      // Information layer
+      if (config.info) {
+        let numbers
+        if (config.theme !== 0 && (j === 52 || j === 53)) {
+          numbers = createInfoLayer(j, COLOR_WHITE, COLOR_WHITE)
+        } else {
+          numbers = createInfoLayer(j, config.colorBlack, config.colorRed)
+        }
+        await fs.appendFile(`svgs/${config.name}/${j}.svg`, numbers)
+      }
+
+      // Count layer
+      if (config.number) {
+        let info
+        if (config.theme !== 0) {
+          info = createNbLayer(j, COLOR_WHITE, COLOR_WHITE)
+        } else {
+          info = createNbLayer(j, config.colorBlack, config.colorRed)
+        }
+        await fs.appendFile(`svgs/${config.name}/${j}.svg`, info)
+      }
+
+      // SVG footer
+      await fs.appendFile(`svgs/${config.name}/${j}.svg`, svgFooter)
+
+      // TODO: save svg on IPFS
+
+      // create metadata
+      const metadataObj = createMetadata(
+        j,
+        "imageHash",
+        config.name,
+        config.description
+      )
+
+      // TODO: calculate the metadata index
+      const metadataCounter = j + 1 + (54 * i - 54)
+
+      // save metadata locally
+      await fs.writeFile(
+        `jsonFolder/${metadataCounter}.json`,
+        JSON.stringify(metadataObj)
+      )
+    }
+  }
 }
 
 main()
