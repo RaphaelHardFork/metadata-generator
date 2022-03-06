@@ -1,6 +1,12 @@
 node_modules
 
 assets
+output
+src
+
+
+
 apiKeys.js
+
 
 .env.local
